@@ -1,2 +1,2 @@
 # navier-stokes-simulator
-This repo consists of very old scripts and demos related to CFD
+This repo displays some really old educational scripts and demos related to CFD simulations.
