@@ -13,7 +13,6 @@ class BoundaryConditions():
         self.dy = 1.0/Nyc
         self.x = np.linspace(0 - self.dx, 1.0 + self.dx, Nxc+2)
         self.y = np.linspace(0 - self.dy, 1.0 + self.dy, Nyc+2)
-
         
     def pressure_bc(self, c):
         c[2:self.Nxc, 2:self.Nyc] = 1.0/4.0
@@ -27,7 +26,6 @@ class BoundaryConditions():
         c[2:self.Nxc, self.Nyc] = 1.0/3.0
         return c
 
-
     def velocity_bc(self, i, j, u, v):
         u[i, 0] = 2.0 * self.Us - u[i, 1]
         u[i, self.Nyc+1] = 2.0 * self.Un - u[i, self.Nyc]
@@ -39,14 +37,12 @@ class BoundaryConditions():
         v[i+1, self.Nyc] = v[i+1, 0]
         return v, u
 
-
     def pressure_ghosts(self, P):
         P[0:self.Nxc+2, 0] = 0
         P[0:self.Nxc+2, self.Nyc+1] = 0
         P[0, 0:self.Nyc+2] = 0
         P[self.Nxc+1, 0:self.Nyc+2] = 0
         return P
-
 
     def vorticity_bc(self, i, j, phi, vorticity):
         vorticity[i, 0] = - 2.0 * phi[i, 1]/(self.dx*self.dy)
