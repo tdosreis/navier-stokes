@@ -1,139 +1,185 @@
 import numpy as np
 from navier_stokes import navier_stokes_x, navier_stokes_y
 from solver import poisson, streamlines
-from boundary_conditions import (
-    velocity_bc, pressure_bc, pressure_ghosts, vorticity_bc
-    )
+from grid_setup import SetupGrid
+import itertools
 
+class FlowSimulation(SetupGrid): 
 
-def simulate_flow(u, v, Nxc, Nyc, dt, tf, n_iter, SOR, Re, Us, Un, Vw, Ve):
+    def __init__(self, Re, SOR, n_iter, t, dt, tf, Un, Us, Vw, Ve, Nxc, Nyc): 
+        self.Re = Re
+        self.tf = tf
+        self.SOR = SOR
+        self.n_iter = n_iter
+        self.dt = dt
+        self.t = t
+        self.Un = Un
+        self.Us = Us
+        self.Vw = Vw
+        self.Ve = Ve
+        self.Nxc = Nxc
+        self.Nyc = Nyc
+        super().__init__(Re, SOR, n_iter, t, dt, tf, Un, Us, Vw, Ve, Nxc, Nyc)
+        
+    def simulate_flow(self):   
+        
+        self.c = self.pressure_bc(self.c)
 
-    dx = 1.0/Nxc
-    dy = 1.0/Nyc
-    x = np.linspace(0 - dx, 1.0 + dx, Nxc+2)
-    y = np.linspace(0 - dy, 1.0 + dy, Nyc+2)
-    N = tf/dt
-    error = []
-    t = 0   # initial time
-    it = 0   # number of iterations
+        for n in range(1, int(self.N+1)):
+            
+            x_ = np.arange(0, self.Nxc+1, 1)
+            y_ = np.arange(0, self.Nyc+1, 1)
+            
+            for (i, j) in itertools.product(x_, y_):
 
-    c = np.zeros((Nxc+2, Nyc+2))
-    u = np.zeros((Nxc+1, Nyc+2))
-    u_tp = np.zeros((Nxc+1, Nyc+2))
-    v = np.zeros((Nxc+2, Nyc+1))
-    v_tp = np.zeros((Nxc+2, Nyc+1))
-    P = np.zeros((Nxc+2, Nyc+2))
-    u_contour = np.zeros((Nxc+1, Nyc+1))
-    v_contour = np.zeros((Nxc+1, Nyc+1))
-    p_contour = np.zeros((Nxc+1, Nyc+1))
-    phi_contour = np.zeros((Nxc+2, Nyc+2))
-    phi = np.zeros((Nxc+2, Nyc+2))
-    vorticity = np.zeros((Nxc+2, Nyc+2))
-    x2d = np.zeros((Nxc+2, Nyc+2))
-    y2d = np.zeros((Nxc+2, Nyc+2))
-    pressure_bc(Nxc, Nyc, c)
-    P_chk = np.zeros((Nxc+2, Nyc+2))
+                    self.velocity_bc(i, j, 
+                                     self.u,
+                                     self.v)
+                    
+            x_ = np.arange(1, self.Nxc, 1)
+            y_ = np.arange(1, self.Nyc+1, 1)
+            
+            for (i, j) in itertools.product(x_, y_):
 
-    for n in range(1, int(N+1)):
+                    self.u_tp = navier_stokes_x(i, j,
+                                                self.u, 
+                                                self.u_tp,
+                                                self.v,
+                                                self.dx, 
+                                                self.dy,
+                                                self.dt,
+                                                self.Re)
+                    
+            x_ = np.arange(1, self.Nxc+1, 1)
+            y_ = np.arange(1, self.Nyc, 1)
 
-        for i in range(0, Nxc+1):
+            for (i, j) in itertools.product(x_, y_):
 
-            for j in range(0, Nyc+1):
+                    self.v_tp = navier_stokes_y(i, j, 
+                                                self.u,
+                                                self.v_tp,
+                                                self.v,
+                                                self.dx, 
+                                                self.dy, 
+                                                self.dt,
+                                                self.Re)
 
-                velocity_bc(i, j, u, v, Us, Un, Vw, Ve, Nxc, Nyc)
+            for it in range(1, self.n_iter+1):   # SOR
+                
+                x_ = np.arange(1, self.Nxc+1, 1)
+                y_ = np.arange(1, self.Nyc+1, 1)
+                
+                for (i, j) in itertools.product(x_, y_):
 
-        for i in range(1, Nxc):
+                    self.P_chk[i, j] = self.P[i, j]
+    
+                x_ = np.arange(1, self.Nxc+1, 1)
+                y_ = np.arange(1, self.Nyc+1, 1)
+            
+                for (i, j) in itertools.product(x_, y_):
 
-            for j in range(1, Nyc+1):
+                    self.P = poisson(i, j, 
+                                     self.u_tp,
+                                     self.v_tp,
+                                     self.dx,
+                                     self.dy,
+                                     self.dt,
+                                     self.P,
+                                     self.c, 
+                                     self.SOR)
 
-                u_tp = navier_stokes_x(i, j, u, u_tp, v, dx, dy, dt, Re)
+                    self.phi = streamlines(i, j, 
+                                           self.dx, 
+                                           self.dy,
+                                           self.dt,
+                                           self.phi,
+                                           self.vorticity,
+                                           self.SOR)
 
-        for i in range(1, Nxc+1):
+                    self.pressure_ghosts(self.P)
+                    
+            x_ = np.arange(1, self.Nxc+1, 1)
+            y_ = np.arange(1, self.Nyc+1, 1)
+            
+            for (i, j) in itertools.product(x_, y_):
 
-            for j in range(1, Nyc):
+                self.vorticity_bc(i, j,
+                                  self.phi, 
+                                  self.vorticity)
+    
+            x_ = np.arange(1, self.Nxc, 1)
+            y_ = np.arange(1, self.Nyc+1, 1)
+            
+            for (i, j) in itertools.product(x_, y_):
+                
+                self.u[i, j] = (
+                    self.u_tp[i, j] - 
+                    (self.dt/self.dx)*(self.P[i+1, j] - self.P[i, j])
+                )
+                    
+            x_ = np.arange(1, self.Nxc+1, 1)
+            y_ = np.arange(1, self.Nyc, 1)
+            
+            for (i, j) in itertools.product(x_, y_):
+                
+                self.v[i, j] = (
+                    self.v_tp[i, j] - 
+                    (self.dt/self.dy)*(self.P[i, j+1] - self.P[i, j])
+                )
 
-                v_tp = navier_stokes_y(i, j, u, v_tp, v, dx, dy, dt, Re)
+            self.x[0:self.Nxc+2] = np.linspace(0, self.Nxc, self.Nxc+2)
 
-        for it in range(1, n_iter+1):   # SOR
+            self.y[0:self.Nyc+2] = np.linspace(0, self.Nyc, self.Nyc+2)
+            
+            x_ = np.arange(0, self.Nxc+2, 1)
+            y_ = np.arange(0, self.Nyc+2, 1)
+            
+            for (i, j) in itertools.product(x_, y_):
 
-            for i in range(1, Nxc+1):
+                self.x2d[i, j] = self.x[i]
 
-                for j in range(1, Nyc+1):
+                self.y2d[i, j] = self.y[j]
+                
+            x_ = np.arange(0, self.Nxc+1, 1)
+            y_ = np.arange(0, self.Nyc+1, 1)
+            
+            for (i, j) in itertools.product(x_, y_):
 
-                    P_chk[i, j] = P[i, j]
+                self.u_contour[i, j] = (
+                    (1.0/2.0) * (self.u[i, j] + self.u[i, j+1])
+                )
 
-            for i in range(1, Nxc+1):
+                self.v_contour[i, j] = (
+                    (1.0/2.0) * (self.v[i, j] + self.v[i+1, j])
+                )
 
-                for j in range(1, Nyc+1):
-
-                    P = poisson(i, j, u_tp, v_tp, dx, dy, dt, P, c, SOR)
-
-                    phi = streamlines(i, j, dx, dy, dt, phi, vorticity, SOR)
-
-                    pressure_ghosts(Nxc, Nyc, P)
-
-        rmse = np.sqrt(np.sum(np.sum((P_chk - P)**2))/(Nxc*Nyc))
-
-        error.append(rmse)
-
-        for i in range(1, Nxc+1):
-
-            for j in range(1, Nyc+1):
-
-                vorticity_bc(i, j, Nxc, Nyc, dx, dy, phi, vorticity)
-
-        for i in range(1, Nxc):
-
-            for j in range(1, Nyc+1):
-
-                u[i, j] = u_tp[i, j] - (dt/dx)*(P[i+1, j] - P[i, j])
-
-        for i in range(1, Nxc+1):
-
-            for j in range(1, Nyc):
-
-                v[i, j] = v_tp[i, j] - (dt/dy)*(P[i, j+1] - P[i, j])
-
-        x[0:Nxc+2] = np.linspace(0, Nxc, Nxc+2)
-
-        y[0:Nyc+2] = np.linspace(0, Nyc, Nyc+2)
-
-        for i in range(0, Nxc+2):
-
-            for j in range(0, Nyc+2):
-
-                x2d[i, j] = x[i]
-
-                y2d[i, j] = y[j]
-
-        for i in range(0, Nxc+1):
-
-            for j in range(0, Nyc+1):
-
-                u_contour[i, j] = (1.0/2.0) * (u[i, j] + u[i, j+1])
-
-                v_contour[i, j] = (1.0/2.0) * (v[i, j] + v[i+1, j])
-
-                p_contour[i, j] = (
-                    (1.0/4.0) * (P[i, j] + P[i+1, j] + P[i, j+1] + P[i+1, j+1])
+                self.p_contour[i, j] = (
+                    (1.0/4.0) * (self.P[i, j] + self.P[i+1, j] + 
+                                 self.P[i, j+1] + self.P[i+1, j+1])
                     )
 
-                vorticity[i, j] = (
-                    (v[i+1, j] - v[i, j])/dx - (u[i, j+1] - u[i, j])/dy
+                self.vorticity[i, j] = (
+                    (self.v[i+1, j] - self.v[i, j])/self.dx - 
+                    (self.u[i, j+1] - self.u[i, j])/self.dy
                     )
 
-                phi_contour[i, j] = (
-                    (1.0/4.0) * (
-                        (phi[i, j] + phi[i+1, j] + phi[i, j+1] + phi[i+1, j+1])
-                        )
+                self.phi_contour[i, j] = (
+                    (1.0/4.0) * (self.phi[i, j] + self.phi[i+1, j] +
+                                 self.phi[i, j+1] + self.phi[i+1, j+1])
                     )
 
-        [X, Y] = np.meshgrid(x, y)
+            [self.X, self.Y] = np.meshgrid(self.x, self.y)
 
-        STREAMLINE = np.transpose(phi_contour[0:Nxc+2, 0:Nyc+2])
+            self.STREAMLINE = np.transpose(self.phi_contour[0:self.Nxc+2, 0:self.Nyc+2])
 
-        t += dt
+            self.t += self.dt
 
-        it += 1
+            self.it += 1
 
-    return X, Y, STREAMLINE, u_contour, v_contour, p_contour, vorticity
+        return (self.X, 
+                self.Y, 
+                self.STREAMLINE,
+                self.u_contour, 
+                self.v_contour,
+                self.p_contour, 
+                self.vorticity)
