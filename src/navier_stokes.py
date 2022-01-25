@@ -20,7 +20,6 @@ def navier_stokes_x(i, j, u, u_tp, v, dx, dy, dt, Re):
     Duv_y = (uv_x_f - uv_x_b)/dy
 
     advection_u = Duu_x + Duv_y
-
     diffusion_u = D2u_x2 + D2u_y2
 
     u_tp[i, j] = u[i, j] + dt * (-advection_u + (1.0/Re) * diffusion_u)
@@ -50,7 +49,6 @@ def navier_stokes_y(i, j, u, v_tp, v, dx, dy, dt, Re):
     Duv_x = (uv_y_f - uv_y_b)/dx
 
     advection_v = Duv_x + Dvv_y
-
     diffusion_v = D2v_x2 + D2v_y2
 
     v_tp[i, j] = v[i, j] + dt * (-advection_v + (1.0/Re) * diffusion_v)
