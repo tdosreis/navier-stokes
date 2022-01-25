@@ -27,6 +27,8 @@ class FlowSimulation(SetupGrid):
         self.c = self.pressure_bc(self.c)
 
         for n in range(1, int(self.N+1)):
+            
+            print(f'Running iteration number {n} of {int(self.N)}', end="\r")
 
             x_ = np.arange(0, self.Nxc+1, 1)
             y_ = np.arange(0, self.Nyc+1, 1)
