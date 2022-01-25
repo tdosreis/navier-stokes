@@ -2,8 +2,9 @@ import numpy as np
 from initial_conditions import InitialConditions
 from boundary_conditions import BoundaryConditions
 
+
 class SetupGrid(BoundaryConditions, InitialConditions):
-    
+
     def __init__(self, Re, SOR, n_iter, t, dt, tf, Un, Us, Vw, Ve, Nxc, Nyc):
         InitialConditions.__init__(self, Re, t, dt, tf, SOR, n_iter)
         BoundaryConditions.__init__(self, Nxc, Nyc, Un, Us, Vw, Ve)

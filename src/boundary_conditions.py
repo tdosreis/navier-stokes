@@ -1,8 +1,9 @@
 import numpy as np
 
-class BoundaryConditions(): 
-    
-    def __init__(self, Nxc, Nyc, Un, Us, Vw, Ve): 
+
+class BoundaryConditions():
+
+    def __init__(self, Nxc, Nyc, Un, Us, Vw, Ve):
         self.Nxc = Nxc
         self.Nyc = Nyc
         self.Un = Un
@@ -13,7 +14,7 @@ class BoundaryConditions():
         self.dy = 1.0/Nyc
         self.x = np.linspace(0 - self.dx, 1.0 + self.dx, Nxc+2)
         self.y = np.linspace(0 - self.dy, 1.0 + self.dy, Nyc+2)
-        
+
     def pressure_bc(self, c):
         c[2:self.Nxc, 2:self.Nyc] = 1.0/4.0
         c[1, 1] = 1.0/2.0
@@ -46,7 +47,9 @@ class BoundaryConditions():
 
     def vorticity_bc(self, i, j, phi, vorticity):
         vorticity[i, 0] = - 2.0 * phi[i, 1]/(self.dx*self.dy)
-        vorticity[i, self.Nyc + 1] = -2.0 * phi[i, self.Nyc]/(self.dx * self.dy) - 2.0/self.dx
+        vorticity[i, self.Nyc + 1] = (
+                -2.0 * phi[i, self.Nyc]/(self.dx * self.dy) - 2.0/self.dx
+                )
         vorticity[0, j] = -2.0 * phi[1, j]/(self.dx*self.dy)
         vorticity[self.Nxc+1, j] = - 2.0 * phi[self.Nxc, j]/(self.dx*self.dy)
         return vorticity
