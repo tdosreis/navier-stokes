@@ -31,38 +31,38 @@ class FlowSimulation(SetupGrid):
             y_ = np.arange(0, self.Nyc+1, 1)
             
             for (i, j) in itertools.product(x_, y_):
-
-                    self.velocity_bc(i, j, 
-                                     self.u,
-                                     self.v)
+                
+                self.velocity_bc(i, j, 
+                                 self.u,
+                                 self.v)
                     
             x_ = np.arange(1, self.Nxc, 1)
             y_ = np.arange(1, self.Nyc+1, 1)
             
             for (i, j) in itertools.product(x_, y_):
-
-                    self.u_tp = navier_stokes_x(i, j,
-                                                self.u, 
-                                                self.u_tp,
-                                                self.v,
-                                                self.dx, 
-                                                self.dy,
-                                                self.dt,
-                                                self.Re)
+                
+                self.u_tp = navier_stokes_x(i, j,
+                                            self.u, 
+                                            self.u_tp,
+                                            self.v,
+                                            self.dx, 
+                                            self.dy,
+                                            self.dt,
+                                            self.Re)
                     
             x_ = np.arange(1, self.Nxc+1, 1)
             y_ = np.arange(1, self.Nyc, 1)
 
             for (i, j) in itertools.product(x_, y_):
-
-                    self.v_tp = navier_stokes_y(i, j, 
-                                                self.u,
-                                                self.v_tp,
-                                                self.v,
-                                                self.dx, 
-                                                self.dy, 
-                                                self.dt,
-                                                self.Re)
+                
+                self.v_tp = navier_stokes_y(i, j, 
+                                            self.u,
+                                            self.v_tp,
+                                            self.v,
+                                            self.dx, 
+                                            self.dy, 
+                                            self.dt,
+                                            self.Re)
 
             for it in range(1, self.n_iter+1):   # SOR
                 
@@ -128,7 +128,6 @@ class FlowSimulation(SetupGrid):
                 )
 
             self.x[0:self.Nxc+2] = np.linspace(0, self.Nxc, self.Nxc+2)
-
             self.y[0:self.Nyc+2] = np.linspace(0, self.Nyc, self.Nyc+2)
             
             x_ = np.arange(0, self.Nxc+2, 1)
@@ -137,14 +136,13 @@ class FlowSimulation(SetupGrid):
             for (i, j) in itertools.product(x_, y_):
 
                 self.x2d[i, j] = self.x[i]
-
                 self.y2d[i, j] = self.y[j]
                 
             x_ = np.arange(0, self.Nxc+1, 1)
             y_ = np.arange(0, self.Nyc+1, 1)
             
             for (i, j) in itertools.product(x_, y_):
-
+                
                 self.u_contour[i, j] = (
                     (1.0/2.0) * (self.u[i, j] + self.u[i, j+1])
                 )
@@ -170,7 +168,11 @@ class FlowSimulation(SetupGrid):
 
             [self.X, self.Y] = np.meshgrid(self.x, self.y)
 
-            self.STREAMLINE = np.transpose(self.phi_contour[0:self.Nxc+2, 0:self.Nyc+2])
+            self.STREAMLINE = (
+                np.transpose(
+                    self.phi_contour[0:self.Nxc+2, 0:self.Nyc+2]
+                )
+            )
 
             self.t += self.dt
 
