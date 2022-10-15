@@ -1,2 +1,2 @@
 # navier-stokes
-This repo displays some really old educational scripts and demos related to CFD simulations. The code is not vectorized, but it can be useful to have a deeper understanding of the discretization process in fluid mechanics.
+The Navier–Stokes equations describe the motion of viscous incompressible flows. They express conservation of momentum and conservation of mass for Newtonian fluids and arise from applying Newton's second law to fluid motion, together with the assumption that the stress in the fluid is the sum of a diffusing viscous term (proportional to the gradient of velocity) and a pressure term.
