@@ -1,4 +1,6 @@
 """Checks for the single-entry-point solver."""
+import warnings
+
 import numpy as np
 
 from flow_simulation import simulate_flow
@@ -64,8 +66,29 @@ def test_diagnostics_length():
     assert diag["cfl"] < 1.0
 
 
+def test_both_backends_stop_when_velocity_blows_up():
+    """A huge but finite velocity is rejected, and the picture stays at the last good step."""
+    N, dt, tf, Re = 16, 0.1, 0.5, 10.0
+    u_limit = 1.0e3  # lid speed is 1, so the shared cap is 1e3 * u_ref
+    for backend in ("scalar", "vectorized"):
+        u = np.zeros((N+1, N+2))
+        v = np.zeros((N+2, N+1))
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            *fields, diag = simulate_flow(
+                u, v, N, N, dt, tf, 4, 1.5, Re, 0.0, 1.0, 0.0, 0.0,
+                return_diagnostics=True, verbose=False, backend=backend,
+            )
+        assert diag["diverged_step"] is not None, backend
+        assert diag["umax"][-1] > u_limit, backend
+        u_contour = fields[3]
+        assert np.isfinite(u_contour).all(), backend
+        assert np.abs(u_contour).max() <= u_limit, backend
+
+
 if __name__ == "__main__":
     test_momentum_buffer_matches_scalar()
     test_callback_does_not_change_result()
     test_diagnostics_length()
+    test_both_backends_stop_when_velocity_blows_up()
     print("OK")

@@ -83,8 +83,15 @@ def _fill_contours(Nxc, Nyc, u, v, P, phi, u_contour, v_contour, p_contour, phi_
     )
 
 
+def _velocity_ok(umax, u_limit):
+    """Keep a step only while the velocity stays finite and under ``u_limit``."""
+
+    return bool(np.isfinite(umax) and umax <= u_limit)
+
+
 def _advance_scalar(u, v, u_tp, v_tp, P, P_chk, phi, vorticity, c,
-                    Nxc, Nyc, dx, dy, dt, n_iter, SOR, Re, Us, Un, Vw, Ve):
+                    Nxc, Nyc, dx, dy, dt, n_iter, SOR, Re, Us, Un, Vw, Ve,
+                    u_limit):
     """One timestep of the original per-cell solver."""
 
     for i in range(0, Nxc+1):
@@ -124,9 +131,11 @@ def _advance_scalar(u, v, u_tp, v_tp, P, P_chk, phi, vorticity, c,
         for j in range(1, Nyc):
             v[i, j] = v_tp[i, j] - (dt/dy)*(P[i, j+1] - P[i, j])
 
-    _curl(Nxc, Nyc, dx, dy, u, v, vorticity)
     umax = float(np.abs(u).max())
-    return rmse, umax, bool(np.isfinite(umax))
+    ok = _velocity_ok(umax, u_limit)
+    if ok:
+        _curl(Nxc, Nyc, dx, dy, u, v, vorticity)
+    return rmse, umax, ok
 
 
 def _advance_vectorized(u, v, u_tp, v_tp, P, P_chk, phi, vorticity, c, rhs, neigh,
@@ -156,7 +165,7 @@ def _advance_vectorized(u, v, u_tp, v_tp, P, P_chk, phi, vorticity, c, rhs, neig
     )
 
     umax = float(np.abs(u).max())
-    ok = np.isfinite(umax) and umax <= u_limit
+    ok = _velocity_ok(umax, u_limit)
     if ok:
         _curl(Nxc, Nyc, dx, dy, u, v, vorticity)
     return rmse, umax, ok
@@ -225,7 +234,7 @@ def simulate_flow(u, v, Nxc, Nyc, dt, tf, n_iter, SOR, Re, Us, Un, Vw, Ve,
         if backend == "scalar":
             rmse, umax, ok = _advance_scalar(
                 u, v, u_tp, v_tp, P, P_chk, phi, vorticity, c,
-                Nxc, Nyc, dx, dy, dt, n_iter, SOR, Re, Us, Un, Vw, Ve,
+                Nxc, Nyc, dx, dy, dt, n_iter, SOR, Re, Us, Un, Vw, Ve, u_limit,
             )
         else:
             rmse, umax, ok = _advance_vectorized(
