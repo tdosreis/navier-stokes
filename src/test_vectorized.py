@@ -1,7 +1,8 @@
 import numpy as np
 import time
 from navier_stokes import navier_stokes_x, navier_stokes_y
-from navier_stokes_vectorized import navier_stokes_x_vectorized, navier_stokes_y_vectorized
+from navier_stokes_vectorized import navier_stokes_x as navier_stokes_x_vectorized
+from navier_stokes_vectorized import navier_stokes_y as navier_stokes_y_vectorized
 
 def create_test_data(nx=10, ny=8):
     """Create test velocity fields with appropriate shapes."""
