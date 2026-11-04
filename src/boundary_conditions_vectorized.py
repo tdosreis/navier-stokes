@@ -1,24 +1,18 @@
 """Vectorized boundary conditions for the lid-driven cavity solver.
 
-These mirror the scalar routines in ``boundary_conditions.py`` but apply each
-condition to whole array slices at once instead of looping over every cell.
+Velocity and vorticity walls are applied to whole slices. The pressure
+coefficient field and pressure ghosts are identical to the scalar routines and
+live in ``boundary_conditions``.
 """
 
+from boundary_conditions import pressure_bc, pressure_ghosts
 
-def pressure_bc(Nxc, Nyc, c):
-    """Build the SOR coefficient field ``c`` (1/n_neighbours per cell)."""
-
-    c[2:Nxc, 2:Nyc] = 1.0/4.0
-    c[1, 1] = 1.0/2.0
-    c[Nxc, 1] = 1.0/2.0
-    c[1, Nyc] = 1.0/2.0
-    c[Nxc, Nyc] = 1.0/2.0
-    c[2:Nxc, 1] = 1.0/3.0
-    c[1, 2:Nyc] = 1.0/3.0
-    c[Nxc, 2:Nyc] = 1.0/3.0
-    c[2:Nxc, Nyc] = 1.0/3.0
-
-    return c
+__all__ = [
+    "pressure_bc",
+    "pressure_ghosts",
+    "velocity_bc",
+    "vorticity_bc",
+]
 
 
 def velocity_bc(u, v, Us, Un, Vw, Ve, Nxc, Nyc):
@@ -51,17 +45,6 @@ def velocity_bc(u, v, Us, Un, Vw, Ve, Nxc, Nyc):
     v[Nxc+1, Nyc] = 0.0
 
     return v, u
-
-
-def pressure_ghosts(Nxc, Nyc, P):
-    """Zero the pressure ghost cells around the domain."""
-
-    P[0:Nxc+2, 0] = 0
-    P[0:Nxc+2, Nyc+1] = 0
-    P[0, 0:Nyc+2] = 0
-    P[Nxc+1, 0:Nyc+2] = 0
-
-    return P
 
 
 def vorticity_bc(Nxc, Nyc, dx, dy, phi, vorticity):

@@ -9,14 +9,17 @@ identical to the scalar version, only the iteration is removed.
 import numpy as np
 
 
-def navier_stokes_x(u, v, dx, dy, dt, Re):
+def navier_stokes_x(u, v, dx, dy, dt, Re, out=None):
     """x-momentum update on the staggered grid -> returns ``u_tp``.
 
     Interior nodes are i = 1..Nxc-1, j = 1..Nyc (matching the scalar loops
     ``for i in range(1, Nxc)`` / ``for j in range(1, Nyc+1)``).
+
+    Pass ``out`` to write into a preallocated buffer. Cells this stencil does
+    not touch are left as they are, so ``out`` must start at zero.
     """
 
-    u_tp = np.zeros_like(u)
+    u_tp = np.zeros_like(u) if out is None else out
     nx, ny = u.shape
 
     i0, i1 = 1, nx - 1   # i = 1 .. nx-2  (= Nxc-1)
@@ -48,14 +51,17 @@ def navier_stokes_x(u, v, dx, dy, dt, Re):
     return u_tp
 
 
-def navier_stokes_y(u, v, dx, dy, dt, Re):
+def navier_stokes_y(u, v, dx, dy, dt, Re, out=None):
     """y-momentum update on the staggered grid -> returns ``v_tp``.
 
     Interior nodes are i = 1..Nxc, j = 1..Nyc-1 (matching the scalar loops
     ``for i in range(1, Nxc+1)`` / ``for j in range(1, Nyc)``).
+
+    Pass ``out`` to write into a preallocated buffer. Cells this stencil does
+    not touch are left as they are, so ``out`` must start at zero.
     """
 
-    v_tp = np.zeros_like(v)
+    v_tp = np.zeros_like(v) if out is None else out
     nx, ny = v.shape
 
     i0, i1 = 1, nx - 1   # i = 1 .. nx-2  (= Nxc)
