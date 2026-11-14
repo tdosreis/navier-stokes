@@ -1,10 +1,5 @@
 """Lid-driven cavity Navier-Stokes solver.
 
-One time loop, two backends:
-
-* ``vectorized`` (default) — the same finite-volume stencils, applied with NumPy
-* ``scalar`` — the original per-cell loops, kept as a reference
-
 The coordinate mesh is built once. Contour arrays are refreshed after each
 good step so a diverged run can still return the last finite picture. The
 vorticity curl stays inside the step because the next streamfunction sweep
@@ -18,16 +13,11 @@ import numpy as np
 from boundary_conditions import (
     pressure_bc,
     pressure_ghosts,
-    velocity_bc as velocity_bc_scalar,
-    vorticity_bc as vorticity_bc_scalar,
+    velocity_bc,
+    vorticity_bc,
 )
-from boundary_conditions_vectorized import velocity_bc, vorticity_bc
-from navier_stokes import navier_stokes_x as ns_x_scalar
-from navier_stokes import navier_stokes_y as ns_y_scalar
-from navier_stokes_vectorized import navier_stokes_x, navier_stokes_y
-from solver import poisson as poisson_scalar
-from solver import streamlines as stream_scalar
-from solver_vectorized import (
+from navier_stokes import navier_stokes_x, navier_stokes_y
+from solver import (
     checkerboard_masks,
     poisson_sweep,
     source_term,
@@ -83,65 +73,10 @@ def _fill_contours(Nxc, Nyc, u, v, P, phi, u_contour, v_contour, p_contour, phi_
     )
 
 
-def _velocity_ok(umax, u_limit):
-    """Keep a step only while the velocity stays finite and under ``u_limit``."""
-
-    return bool(np.isfinite(umax) and umax <= u_limit)
-
-
-def _advance_scalar(u, v, u_tp, v_tp, P, P_chk, phi, vorticity, c,
-                    Nxc, Nyc, dx, dy, dt, n_iter, SOR, Re, Us, Un, Vw, Ve,
-                    u_limit):
-    """One timestep of the original per-cell solver."""
-
-    for i in range(0, Nxc+1):
-        for j in range(0, Nyc+1):
-            velocity_bc_scalar(i, j, u, v, Us, Un, Vw, Ve, Nxc, Nyc)
-
-    for i in range(1, Nxc):
-        for j in range(1, Nyc+1):
-            ns_x_scalar(i, j, u, u_tp, v, dx, dy, dt, Re)
-
-    for i in range(1, Nxc+1):
-        for j in range(1, Nyc):
-            ns_y_scalar(i, j, u, v_tp, v, dx, dy, dt, Re)
-
-    for _ in range(n_iter):
-        for i in range(1, Nxc+1):
-            for j in range(1, Nyc+1):
-                P_chk[i, j] = P[i, j]
-
-        for i in range(1, Nxc+1):
-            for j in range(1, Nyc+1):
-                poisson_scalar(i, j, u_tp, v_tp, dx, dy, dt, P, c, SOR)
-                stream_scalar(i, j, dx, dy, dt, phi, vorticity, SOR)
-                pressure_ghosts(Nxc, Nyc, P)
-
-    rmse = float(np.sqrt(np.sum((P_chk - P)**2) / (Nxc*Nyc)))
-
-    for i in range(1, Nxc+1):
-        for j in range(1, Nyc+1):
-            vorticity_bc_scalar(i, j, Nxc, Nyc, dx, dy, phi, vorticity)
-
-    for i in range(1, Nxc):
-        for j in range(1, Nyc+1):
-            u[i, j] = u_tp[i, j] - (dt/dx)*(P[i+1, j] - P[i, j])
-
-    for i in range(1, Nxc+1):
-        for j in range(1, Nyc):
-            v[i, j] = v_tp[i, j] - (dt/dy)*(P[i, j+1] - P[i, j])
-
-    umax = float(np.abs(u).max())
-    ok = _velocity_ok(umax, u_limit)
-    if ok:
-        _curl(Nxc, Nyc, dx, dy, u, v, vorticity)
-    return rmse, umax, ok
-
-
-def _advance_vectorized(u, v, u_tp, v_tp, P, P_chk, phi, vorticity, c, rhs, neigh,
-                        red, black, Nxc, Nyc, dx, dy, dt, n_iter, SOR, Re,
-                        Us, Un, Vw, Ve, u_limit):
-    """One timestep of the array solver. ``u_tp`` / ``v_tp`` / ``rhs`` are reused."""
+def _advance(u, v, u_tp, v_tp, P, P_chk, phi, vorticity, c, rhs, neigh,
+             red, black, Nxc, Nyc, dx, dy, dt, n_iter, SOR, Re,
+             Us, Un, Vw, Ve, u_limit):
+    """One timestep. ``u_tp`` / ``v_tp`` / ``rhs`` are reused."""
 
     velocity_bc(u, v, Us, Un, Vw, Ve, Nxc, Nyc)
     navier_stokes_x(u, v, dx, dy, dt, Re, out=u_tp)
@@ -165,7 +100,7 @@ def _advance_vectorized(u, v, u_tp, v_tp, P, P_chk, phi, vorticity, c, rhs, neig
     )
 
     umax = float(np.abs(u).max())
-    ok = _velocity_ok(umax, u_limit)
+    ok = bool(np.isfinite(umax) and umax <= u_limit)
     if ok:
         _curl(Nxc, Nyc, dx, dy, u, v, vorticity)
     return rmse, umax, ok
@@ -173,7 +108,7 @@ def _advance_vectorized(u, v, u_tp, v_tp, P, P_chk, phi, vorticity, c, rhs, neig
 
 def simulate_flow(u, v, Nxc, Nyc, dt, tf, n_iter, SOR, Re, Us, Un, Vw, Ve,
                   return_diagnostics=False, callback=None, callback_every=1,
-                  backend="vectorized", verbose=True):
+                  verbose=True):
     """Advance the lid-driven cavity flow in time.
 
     ``callback(n, t, fields)`` is optional and is called every ``callback_every``
@@ -183,9 +118,6 @@ def simulate_flow(u, v, Nxc, Nyc, dt, tf, n_iter, SOR, Re, Us, Un, Vw, Ve,
     The passed-in ``u`` and ``v`` are not used as initial data; the cavity
     starts from rest, matching the original script.
     """
-
-    if backend not in ("vectorized", "scalar"):
-        raise ValueError(f"unknown backend {backend!r}")
 
     dx = 1.0/Nxc
     dy = 1.0/Nyc
@@ -214,11 +146,9 @@ def simulate_flow(u, v, Nxc, Nyc, dt, tf, n_iter, SOR, Re, Us, Un, Vw, Ve,
     phi_contour = np.zeros((Nxc+2, Nyc+2))
     pressure_bc(Nxc, Nyc, c)
 
-    red = black = rhs = neigh = None
-    if backend == "vectorized":
-        red, black = checkerboard_masks(Nxc, Nyc)
-        rhs = np.zeros((Nxc+2, Nyc+2))
-        neigh = np.zeros((Nxc+2, Nyc+2))
+    red, black = checkerboard_masks(Nxc, Nyc)
+    rhs = np.zeros((Nxc+2, Nyc+2))
+    neigh = np.zeros((Nxc+2, Nyc+2))
 
     # Index coordinates, same grid the original loop rebuilt every step.
     # STREAMLINE is a view of phi_contour, so filling contours updates it.
@@ -231,17 +161,11 @@ def simulate_flow(u, v, Nxc, Nyc, dt, tf, n_iter, SOR, Re, Us, Un, Vw, Ve,
         if verbose:
             print(f"Running iteration number {n} of {n_steps}", end="\r")
 
-        if backend == "scalar":
-            rmse, umax, ok = _advance_scalar(
-                u, v, u_tp, v_tp, P, P_chk, phi, vorticity, c,
-                Nxc, Nyc, dx, dy, dt, n_iter, SOR, Re, Us, Un, Vw, Ve, u_limit,
-            )
-        else:
-            rmse, umax, ok = _advance_vectorized(
-                u, v, u_tp, v_tp, P, P_chk, phi, vorticity, c, rhs, neigh,
-                red, black, Nxc, Nyc, dx, dy, dt, n_iter, SOR, Re,
-                Us, Un, Vw, Ve, u_limit,
-            )
+        rmse, umax, ok = _advance(
+            u, v, u_tp, v_tp, P, P_chk, phi, vorticity, c, rhs, neigh,
+            red, black, Nxc, Nyc, dx, dy, dt, n_iter, SOR, Re,
+            Us, Un, Vw, Ve, u_limit,
+        )
 
         error.append(rmse)
         umax_history.append(umax)
