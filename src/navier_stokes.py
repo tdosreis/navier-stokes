@@ -1,56 +1,89 @@
-def navier_stokes_x(i, j, u, u_tp, v, dx, dy, dt, Re):
+"""Explicit momentum step for the Navier-Stokes solver.
 
-    uu_f = ((1.0/2.0) * (u[i+1, j] + u[i, j]))**2.0
-    uu_b = ((1.0/2.0) * (u[i-1, j] + u[i, j]))**2.0
+The finite-volume stencils are applied with NumPy slices, so the whole interior
+is updated in one shot.
+"""
 
-    Duu_x = (uu_f - uu_b)/dx
+import numpy as np
 
-    u_sum_f = u[i, j] + u[i, j+1]
-    u_sum_b = u[i, j] + u[i, j-1]
 
-    v_sum_f = v[i, j] + v[i+1, j]
-    v_sum_b = v[i, j-1] + v[i+1, j-1]
+def navier_stokes_x(u, v, dx, dy, dt, Re, out=None):
+    """x-momentum update on the staggered grid -> returns ``u_tp``.
 
-    uv_x_f = (1.0/2.0)*(u_sum_f)*(1.0/2.0)*(v_sum_f)
-    uv_x_b = (1.0/2.0)*(u_sum_b)*(1.0/2.0)*(v_sum_b)
+    Interior nodes are i = 1..Nxc-1, j = 1..Nyc.
 
-    D2u_x2 = ((u[i+1, j] - 2.0*u[i, j] + u[i-1, j])/dx**2.0)
-    D2u_y2 = ((u[i, j+1] - 2.0*u[i, j] + u[i, j-1])/dy**2.0)
+    Pass ``out`` to write into a preallocated buffer. Cells this stencil does
+    not touch are left as they are, so ``out`` must start at zero.
+    """
 
-    Duv_y = (uv_x_f - uv_x_b)/dy
+    u_tp = np.zeros_like(u) if out is None else out
+    nx, ny = u.shape
+
+    i0, i1 = 1, nx - 1   # i = 1 .. nx-2  (= Nxc-1)
+    j0, j1 = 1, ny - 1   # j = 1 .. ny-2  (= Nyc)
+
+    # d(uu)/dx
+    uu_f = (0.5 * (u[i0+1:i1+1, j0:j1] + u[i0:i1, j0:j1]))**2.0
+    uu_b = (0.5 * (u[i0-1:i1-1, j0:j1] + u[i0:i1, j0:j1]))**2.0
+    Duu_x = (uu_f - uu_b) / dx
+
+    # d(uv)/dy
+    u_sum_f = u[i0:i1, j0:j1] + u[i0:i1, j0+1:j1+1]
+    u_sum_b = u[i0:i1, j0:j1] + u[i0:i1, j0-1:j1-1]
+    v_sum_f = v[i0:i1, j0:j1] + v[i0+1:i1+1, j0:j1]
+    v_sum_b = v[i0:i1, j0-1:j1-1] + v[i0+1:i1+1, j0-1:j1-1]
+    uv_x_f = 0.25 * u_sum_f * v_sum_f
+    uv_x_b = 0.25 * u_sum_b * v_sum_b
+    Duv_y = (uv_x_f - uv_x_b) / dy
+
+    # Laplacian of u
+    D2u_x2 = (u[i0+1:i1+1, j0:j1] - 2.0*u[i0:i1, j0:j1] + u[i0-1:i1-1, j0:j1]) / dx**2.0
+    D2u_y2 = (u[i0:i1, j0+1:j1+1] - 2.0*u[i0:i1, j0:j1] + u[i0:i1, j0-1:j1-1]) / dy**2.0
 
     advection_u = Duu_x + Duv_y
     diffusion_u = D2u_x2 + D2u_y2
 
-    u_tp[i, j] = u[i, j] + dt * (-advection_u + (1.0/Re) * diffusion_u)
+    u_tp[i0:i1, j0:j1] = u[i0:i1, j0:j1] + dt * (-advection_u + (1.0/Re) * diffusion_u)
 
     return u_tp
 
 
-def navier_stokes_y(i, j, u, v_tp, v, dx, dy, dt, Re):
+def navier_stokes_y(u, v, dx, dy, dt, Re, out=None):
+    """y-momentum update on the staggered grid -> returns ``v_tp``.
 
-    vv_f = ((1.0/2.0) * (v[i, j+1] + v[i, j]))**2.0
-    vv_b = ((1.0/2.0) * (v[i, j] + v[i, j-1]))**2.0
+    Interior nodes are i = 1..Nxc, j = 1..Nyc-1.
 
-    Dvv_y = (vv_f - vv_b)/dy
+    Pass ``out`` to write into a preallocated buffer. Cells this stencil does
+    not touch are left as they are, so ``out`` must start at zero.
+    """
 
-    u_sum_f = u[i, j+1] + u[i, j]
-    u_sum_b = u[i-1, j+1] + u[i-1, j]
+    v_tp = np.zeros_like(v) if out is None else out
+    nx, ny = v.shape
 
-    v_sum_f = v[i, j] + v[i+1, j]
-    v_sum_b = v[i, j] + v[i-1, j]
+    i0, i1 = 1, nx - 1   # i = 1 .. nx-2  (= Nxc)
+    j0, j1 = 1, ny - 1   # j = 1 .. ny-2  (= Nyc-1)
 
-    uv_y_f = (1.0/2.0)*(u_sum_f)*(1.0/2.0)*(v_sum_f)
-    uv_y_b = (1.0/2.0)*(u_sum_b)*(1.0/2.0)*(v_sum_b)
+    # d(vv)/dy
+    vv_f = (0.5 * (v[i0:i1, j0+1:j1+1] + v[i0:i1, j0:j1]))**2.0
+    vv_b = (0.5 * (v[i0:i1, j0:j1] + v[i0:i1, j0-1:j1-1]))**2.0
+    Dvv_y = (vv_f - vv_b) / dy
 
-    D2v_x2 = ((v[i+1, j] - 2.0*v[i, j] + v[i-1, j])/dx**2.0)
-    D2v_y2 = ((v[i, j+1] - 2.0*v[i, j] + v[i, j-1])/dy**2.0)
+    # d(uv)/dx
+    u_sum_f = u[i0:i1, j0+1:j1+1] + u[i0:i1, j0:j1]
+    u_sum_b = u[i0-1:i1-1, j0+1:j1+1] + u[i0-1:i1-1, j0:j1]
+    v_sum_f = v[i0:i1, j0:j1] + v[i0+1:i1+1, j0:j1]
+    v_sum_b = v[i0:i1, j0:j1] + v[i0-1:i1-1, j0:j1]
+    uv_y_f = 0.25 * u_sum_f * v_sum_f
+    uv_y_b = 0.25 * u_sum_b * v_sum_b
+    Duv_x = (uv_y_f - uv_y_b) / dx
 
-    Duv_x = (uv_y_f - uv_y_b)/dx
+    # Laplacian of v
+    D2v_x2 = (v[i0+1:i1+1, j0:j1] - 2.0*v[i0:i1, j0:j1] + v[i0-1:i1-1, j0:j1]) / dx**2.0
+    D2v_y2 = (v[i0:i1, j0+1:j1+1] - 2.0*v[i0:i1, j0:j1] + v[i0:i1, j0-1:j1-1]) / dy**2.0
 
     advection_v = Duv_x + Dvv_y
     diffusion_v = D2v_x2 + D2v_y2
 
-    v_tp[i, j] = v[i, j] + dt * (-advection_v + (1.0/Re) * diffusion_v)
+    v_tp[i0:i1, j0:j1] = v[i0:i1, j0:j1] + dt * (-advection_v + (1.0/Re) * diffusion_v)
 
     return v_tp

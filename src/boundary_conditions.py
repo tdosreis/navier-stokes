@@ -1,3 +1,6 @@
+"""Boundary conditions for the lid-driven cavity solver."""
+
+
 def pressure_bc(Nxc, Nyc, c):
 
     c[2:Nxc, 2:Nyc] = 1.0/4.0
@@ -13,20 +16,6 @@ def pressure_bc(Nxc, Nyc, c):
     return c
 
 
-def velocity_bc(i, j, u, v, Us, Un, Vw, Ve, Nyc, Nxc):
-
-    u[i, 0] = 2.0 * Us - u[i, 1]
-    u[i, Nyc+1] = 2.0 * Un - u[i, Nyc]
-    u[0, j+1] = 0.0
-    u[Nxc, j+1] = u[0, j+1]
-    v[0, j] = 2.0 * Vw - v[1, j]
-    v[Nxc+1, j] = 2.0 * Ve - v[Nxc, j]
-    v[i+1, 0] = 0.0
-    v[i+1, Nyc] = v[i+1, 0]
-
-    return v, u
-
-
 def pressure_ghosts(Nxc, Nyc, P):
 
     P[0:Nxc+2, 0] = 0
@@ -37,11 +26,42 @@ def pressure_ghosts(Nxc, Nyc, P):
     return P
 
 
-def vorticity_bc(i, j, Nxc, Nyc, dx, dy, phi, vorticity):
+def velocity_bc(u, v, Us, Un, Vw, Ve, Nxc, Nyc):
+    """Apply ghost-cell velocity boundary conditions to ``u`` and ``v``.
 
-    vorticity[i, 0] = - 2.0 * phi[i, 1]/(dx*dy)
-    vorticity[i, Nyc + 1] = -2.0 * phi[i, Nyc]/(dx * dy) - 2.0/dx
-    vorticity[0, j] = -2.0 * phi[1, j]/(dx*dy)
-    vorticity[Nxc+1, j] = - 2.0 * phi[Nxc, j]/(dx*dy)
+    The left/right wall columns of ``u`` are fully zeroed, so the two
+    top-corner ghosts are 0, not ``2*Un``. The right ghost column of ``v`` is
+    zeroed at the bottom/top corners.
+    """
+
+    # No-penetration walls go first so the ghost expressions below read the
+    # zeroed neighbours.
+    u[0, 1:Nyc+2] = 0.0
+    u[Nxc, 1:Nyc+2] = 0.0
+    v[1:Nxc+1, 0] = 0.0
+    v[1:Nxc+1, Nyc] = 0.0
+
+    # Bottom / top ghosts for u over the interior columns (moving lid = Un).
+    u[1:Nxc, 0] = 2.0 * Us - u[1:Nxc, 1]
+    u[1:Nxc, Nyc+1] = 2.0 * Un - u[1:Nxc, Nyc]
+    u[0, 0] = 2.0 * Us - u[0, 1]
+    u[Nxc, 0] = 2.0 * Us - u[Nxc, 1]
+
+    # Left / right ghost columns for v.
+    v[0, :] = 2.0 * Vw - v[1, :]
+    v[Nxc+1, :] = 2.0 * Ve - v[Nxc, :]
+    v[Nxc+1, 0] = 0.0
+    v[Nxc+1, Nyc] = 0.0
+
+    return v, u
+
+
+def vorticity_bc(Nxc, Nyc, dx, dy, phi, vorticity):
+    """Set the vorticity on the four domain boundaries from the streamfunction."""
+
+    vorticity[1:Nxc+1, 0] = -2.0 * phi[1:Nxc+1, 1] / (dx*dy)
+    vorticity[1:Nxc+1, Nyc+1] = -2.0 * phi[1:Nxc+1, Nyc] / (dx*dy) - 2.0/dx
+    vorticity[0, 1:Nyc+1] = -2.0 * phi[1, 1:Nyc+1] / (dx*dy)
+    vorticity[Nxc+1, 1:Nyc+1] = -2.0 * phi[Nxc, 1:Nyc+1] / (dx*dy)
 
     return vorticity
