@@ -4,5 +4,8 @@ channels:
 dependencies:
   - python=3.11
   - numpy
+  - matplotlib
+  - ipykernel
+  - jupyter
   - pytest
   - flake8
